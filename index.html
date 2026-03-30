@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Спрячь Точку: Ultimate</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
+
+        :root {
+            --grass-light: #4caf50;
+            --grass-dark: #2e7d32;
+            --snake-color: #5d4037;
+            --snake-border: #3e2723;
+            --dot-color: #ff1744;
+            --ui-bg: rgba(255, 255, 255, 0.95);
+            --text-color: #1b1b1b;
+            --accent: #ff9800;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Montserrat', sans-serif;
+            background: linear-gradient(135deg, var(--grass-light), var(--grass-dark));
+            color: var(--text-color);
+        }
+
+        /* --- ЭКРАНЫ --- */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            transition: opacity 0.3s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* --- МЕНЮ И КАРТОЧКИ --- */
+        .card {
+            background: var(--ui-bg);
+            padding: 2rem;
+            border-radius: 25px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            text-align: center;
+            width: 85%;
+            max-width: 400px;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        h1 { margin: 0 0 10px 0; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; font-size: 24px; }
+        h2 { margin: 0 0 15px 0; font-weight: 800; color: #555; font-size: 18px; }
+        
+        .stat-box {
+            background: #f0f0f0;
+            padding: 12px;
+            border-radius: 12px;
+            margin: 15px 0;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .stat-val { color: var(--grass-dark); font-size: 1.3em; }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            outline: none;
+            font-family: inherit;
+            text-align: center;
+        }
+        input:focus { border-color: var(--grass-dark); }
+
+        button {
+            background: linear-gradient(45deg, var(--grass-dark), var(--grass-light));
+            color: white;
+            border: none;
+            padding: 16px;
+            font-size: 18px;
+            font-weight: 800;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 6px 20px rgba(46, 125, 50, 0.4);
+            transition: transform 0.1s;
+            margin-bottom: 10px;
+        }
+        button:active { transform: scale(0.96); }
+        button.secondary {
+            background: linear-gradient(45deg, #607d8b, #546e7a);
+            box-shadow: 0 6px 20px rgba(96, 125, 139, 0.4);
+            font-size: 16px;
+            padding: 12px;
+        }
+        button.toggle-btn {
+            background: #eee;
+            color: #333;
+            box-shadow: none;
+            margin: 5px 0;
+        }
+        button.toggle-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* --- ИГРА --- */
+        #game-screen {
+            justify-content: flex-start;
+            background: transparent;
+        }
+
+        #hud {
+            width: 100%;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(5px);
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 30;
+            margin-top: env(safe-area-inset-top);
+        }
+
+        .hud-item { text-align: center; min-width: 70px; }
+        .hud-label { font-size: 10px; text-transform: uppercase; color: #666; font-weight: 700; }
+        .hud-value { font-size: 18px; font-weight: 900; color: var(--grass-dark); }
+        .wave-badge { background: #ff9800; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; vertical-align: middle; }
+
+        #field-container {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            max-width: 600px;
+            margin: 10px auto;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+            background-image: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .entity { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); will-change: left, top; }
+
+        #player-dot {
+            width: 24px; height: 24px;
+            background: var(--dot-color);
+            box-shadow: 0 0 15px var(--dot-color), 0 0 5px white;
+            z-index: 10;
+            animation: pulse 1s infinite;
+        }
+
+        .snake {
+            width: 28px; height: 28px;
+            background: var(--snake-color);
+            border: 2px solid var(--snake-border);
+            z-index: 11;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex; justify-content: center; align-items: center;
+        }
+        .snake::before, .snake::after {
+            content: ''; position: absolute; top: 8px; width: 5px; height: 5px;
+            background: white; border-radius: 50%;
+        }
+        .snake::before { left: 6px; } .snake::after { right: 6px; }
+
+        #controls {
+            width: 100%;
+            padding: 15px 20px;
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(5px);
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            display: flex;
+            gap: 15px;
+            z-index: 30;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-action { flex: 1; padding: 18px; font-size: 16px; border-radius: 16px; text-transform: uppercase; }
+        .btn-stop { background: linear-gradient(45deg, #ff9800, #f57c00); }
+        .btn-next { background: linear-gradient(45deg, #2196f3, #1976d2); display: none; }
+        .btn-disabled { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
+
+        /* Модалка */
+        #result-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #result-modal.active { opacity: 1; pointer-events: auto; }
+        .result-card {
+            background: white; padding: 30px; border-radius: 25px;
+            text-align: center; width: 80%; max-width: 350px;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .res-title { font-size: 26px; font-weight: 900; margin-bottom: 10px; }
+        .res-score { font-size: 36px; font-weight: 900; margin: 15px 0; }
+        .win { color: var(--grass-dark); } .lose { color: var(--dot-color); }
+
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes pulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.15); } 100% { transform: translate(-50%, -50%) scale(1); } }
+        @keyframes spawnAnim { from { transform: translate(-50%, -50%) scale(0); } to { transform: translate(-50%, -50%) scale(1); } }
+    </style>
+</head>
+<body>
+
+    <!-- ЭКРАН 1: ВХОД -->
+    <div id="screen-login" class="screen">
+        <div class="card">
+            <h1>Спрячь Точку</h1>
+            <p style="color:#666; margin-bottom: 20px;">Введи ник для старта</p>
+            <input type="text" id="nickname-input" placeholder="Твой ник..." maxlength="12">
+            <button onclick="login()">СТАРТ</button>
+        </div>
+    </div>
+
+    <!-- ЭКРАН 2: МЕНЮ -->
+    <div id="screen-menu" class="screen hidden">
+        <div class="card">
+            <h1 id="menu-greeting">Привет!</h1>
+            <div class="stat-box">
+                <span>Рейтинг:</span> <span id="menu-elo" class="stat-val">0</span>
+            </div>
+            <div class="stat-box" style="font-size: 0.9em; color: #777; display:block;">
+                Рекорд сессии: <span id="menu-best">0</span>
+            </div>
+            <button onclick="startGame()">ИГРАТЬ</button>
+            <button class="secondary" onclick="openSettings()">НАСТРОЙКИ</button>
+        </div>
+    </div>
+
+    <!-- ЭКРАН 3: НАСТРОЙКИ -->
+    <div id="screen-settings" class="screen hidden">
+        <div class="card">
+            <h2>Настройки Скорости</h2>
+            <p style="font-size: 12px; color: #666; margin-bottom: 15px;">
+                1x: 10 сек волна, обычная скорость.<br>
+                2x: 5 сек волна, двойная скорость змей.
+            </p>
+            <button id="btn-speed-1" class="toggle-btn active" onclick="setSpeedMode(1)">1x (Обычная)</button>
+            <button id="btn-speed-2" class="toggle-btn" onclick="setSpeedMode(2)">2x (Хардкор)</button>
+            <button class="secondary" onclick="closeSettings()" style="margin-top: 20px;">НАЗАД</button>
+        </div>
+    </div>
+
+    <!-- ЭКРАН 4: ИГРА -->
+    <div id="game-screen" class="screen hidden">
+        <div id="hud">
+            <div class="hud-item">
+                <div class="hud-label">Время</div>
+                <div class="hud-value" id="timer-display">10.0</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">Волна <span class="wave-badge">🌊</span></div>
+                <div class="hud-value" id="wave-display">1</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">Выигрыш</div>
+                <div class="hud-value" id="potential-elo" style="color: #ff9800;">+0</div>
+            </div>
+        </div>
+
+        <div id="field-container" onclick="handleFieldClick(event)">
+            <div id="player-dot" class="entity" style="display: none;"></div>
+        </div>
+
+        <div id="controls">
+            <button class="btn-action btn-stop" id="btn-stop" onclick="tryStopRound()">ЗАБРАТЬ ELO</button>
+            <button class="btn-action btn-next" id="btn-next" onclick="nextWave()">СЛЕД. ВОЛНА</button>
+        </div>
+    </div>
+
+    <!-- РЕЗУЛЬТАТ -->
+    <div id="result-modal">
+        <div class="result-card">
+            <div class="res-title" id="res-title">ПОЙМАЛИ!</div>
+            <div style="color:#666;" id="res-desc">Червяк нашел точку.</div>
+            <div class="res-score" id="res-score">-50</div>
+            <button onclick="toMenu()">В МЕНЮ</button>
+        </div>
+    </div>
+
+    <script>
+        // --- ЗВУКОВОЙ ДВИЖОК (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+            
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'spawn') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(400, now + 0.3);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'win') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(600, now + 0.1);
+                osc.frequency.setValueAtTime(1000, now + 0.2);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.6);
+                osc.start(now);
+                osc.stop(now + 0.6);
+            } else if (type === 'lose') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.5);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+        }
+
+        // --- НАСТРОЙКИ ИГРЫ ---
+        const CFG = {
+            baseTime: 10,       // Базовое время волны
+            baseSpeed: 3.5,     // Базовая скорость
+            speedInc: 0.8,      // Прибавка за волну
+            turnInterval: 1.5,  // Частота смены цели
+            eloBase: 15,
+            eloMult: 1.2,
+            penaltyMult: 2.5
+        };
+
+        let Settings = {
+            speedMode: 1 // 1 или 2
+        };
+
+        // --- СОСТОЯНИЕ ---
+        let DB = { nick: '', elo: 0, best: 0 };
+        let Game = {
+            active: false,
+            wave: 1,
+            timer: 0,
+            dot: { x: 0, y: 0, placed: false },
+            snakes: [],
+            loopId: null,
+            lastTime: 0,
+            fieldRect: null,
+            roundFinished: false // Флаг: закончилась ли текущая волна
+        };
+
+        // --- БАЗА ДАННЫХ ---
+        function loadDB() {
+            DB.nick = localStorage.getItem('hd_nick') || '';
+            DB.elo = parseInt(localStorage.getItem('hd_elo') || '0');
+            DB.best = parseInt(localStorage.getItem('hd_best') || '0');
+            const savedSpeed = localStorage.getItem('hd_speed');
+            if(savedSpeed) Settings.speedMode = parseInt(savedSpeed);
+            
+            if(DB.nick) document.getElementById('nickname-input').value = DB.nick;
+            updateSettingsUI();
+        }
+        function saveDB() {
+            localStorage.setItem('hd_nick', DB.nick);
+            localStorage.setItem('hd_elo', DB.elo);
+            localStorage.setItem('hd_best', DB.best);
+            localStorage.setItem('hd_speed', Settings.speedMode);
+        }
+
+        // --- UI ФУНКЦИИ ---
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function login() {
+            const val = document.getElementById('nickname-input').value.trim();
+            if(!val) return alert('Введи ник!');
+            DB.nick = val;
+            saveDB();
+            playSound('click');
+            updateMenu();
+            showScreen('screen-menu');
+        }
+
+        function updateMenu() {
+            document.getElementById('menu-greeting').innerText = `Привет, ${DB.nick}!`;
+            document.getElementById('menu-elo').innerText = DB.elo;
+            document.getElementById('menu-best').innerText = DB.best;
+        }
+
+        function toMenu() {
+            document.getElementById('result-modal').classList.remove('active');
+            stopLoop();
+            updateMenu();
+            showScreen('screen-menu');
+        }
+
+        // --- НАСТРОЙКИ ---
+        function openSettings() {
+            playSound('click');
+            updateSettingsUI();
+            showScreen('screen-settings');
+        }
+        function closeSettings() {
+            playSound('click');
+            showScreen('screen-menu');
+        }
+        function setSpeedMode(mode) {
+            playSound('click');
+            Settings.speedMode = mode;
+            saveDB();
+            updateSettingsUI();
+        }
+        function updateSettingsUI() {
+            const btn1 = document.getElementById('btn-speed-1');
+            const btn2 = document.getElementById('btn-speed-2');
+            if(Settings.speedMode === 1) {
+                btn1.classList.add('active');
+                btn2.classList.remove('active');
+            } else {
+                btn1.classList.remove('active');
+                btn2.classList.add('active');
+            }
+        }
+
+        // --- ИГРОВОЙ ПРОЦЕСС ---
+        function startGame() {
+            playSound('click');
+            Game.wave = 1;
+            Game.active = true;
+            
+            const container = document.getElementById('field-container');
+            const hudH = document.getElementById('hud').offsetHeight;
+            const ctrlH = document.getElementById('controls').offsetHeight;
+            const availH = window.innerHeight - hudH - ctrlH - 20;
+            
+            container.style.height = availH + 'px';
+            Game.fieldRect = container.getBoundingClientRect();
+
+            showScreen('game-screen');
+            startRound();
+        }
+
+        function startRound() {
+            Game.dot.placed = false;
+            Game.roundFinished = false; // Сбрасываем флаг окончания раунда
+            
+            // Расчет времени волны в зависимости от настроек
+            const timeMultiplier = Settings.speedMode === 2 ? 0.5 : 1.0;
+            Game.timer = CFG.baseTime * timeMultiplier;
+            
+            document.getElementById('player-dot').style.display = 'none';
+            
+            document.querySelectorAll('.snake').forEach(e => e.remove());
+            Game.snakes = [];
+
+            const btnStop = document.getElementById('btn-stop');
+            const btnNext = document.getElementById('btn-next');
+            
+            btnStop.style.display = 'block';
+            btnStop.innerText = "ЗАБРАТЬ ELO";
+            btnStop.classList.remove('btn-disabled');
+            btnStop.onclick = tryStopRound;
+            
+            btnNext.style.display = 'none';
+
+            updateHUD();
+        }
+
+        function handleFieldClick(e) {
+            if(!Game.active || Game.dot.placed) return;
+            
+            const rect = Game.fieldRect;
+            let x = e.clientX - rect.left;
+            let y = e.clientY - rect.top;
+
+            const margin = 20;
+            const maxX = rect.width - margin;
+            const maxY = rect.height - margin;
+
+            if (x < margin || x > maxX || y < margin || y > maxY) return;
+
+            Game.dot.x = x;
+            Game.dot.y = y;
+            Game.dot.placed = true;
+
+            const dotEl = document.getElementById('player-dot');
+            dotEl.style.left = x + 'px';
+            dotEl.style.top = y + 'px';
+            dotEl.style.display = 'block';
+
+            setTimeout(() => {
+                if(!Game.active) return;
+                playSound('spawn');
+                spawnSnakes();
+                startLoop();
+            }, 3000);
+        }
+
+        function getSnakeCount(wave) {
+            if(wave >= 100) return 6;
+            if(wave >= 50) return 4;
+            if(wave >= 10) return 2;
+            return 1;
+        }
+
+        function spawnSnakes() {
+            const count = getSnakeCount(Game.wave);
+            const currentCount = Game.snakes.length;
+            const rect = Game.fieldRect;
+            
+            // Ускорение змей в режиме 2x
+            const speedMultiplier = Settings.speedMode === 2 ? 2.0 : 1.0;
+            const speed = (CFG.baseSpeed + (Game.wave * CFG.speedInc)) * speedMultiplier;
+
+            for(let i = currentCount; i < count; i++) {
+                const el = document.createElement('div');
+                el.className = 'snake entity';
+                el.style.animation = 'spawnAnim 0.4s ease-out';
+                document.getElementById('field-container').appendChild(el);
+
+                let sx, sy, dist;
+                do {
+                    sx = Math.random() * (rect.width - 40) + 20;
+                    sy = Math.random() * (rect.height - 40) + 20;
+                    dist = Math.hypot(sx - Game.dot.x, sy - Game.dot.y);
+                } while(dist < 150);
+
+                Game.snakes.push({
+                    el: el, x: sx, y: sy,
+                    targetX: sx, targetY: sy,
+                    speed: speed, timer: 0
+                });
+                setNewTarget(Game.snakes[Game.snakes.length-1]);
+            }
+
+            Game.snakes.forEach(s => {
+                const sp = (CFG.baseSpeed + (Game.wave * CFG.speedInc)) * speedMultiplier;
+                s.speed = sp;
+                setNewTarget(s);
+            });
+        }
+
+        function setNewTarget(snake) {
+            const rect = Game.fieldRect;
+            snake.targetX = Math.random() * (rect.width - 40) + 20;
+            snake.targetY = Math.random() * (rect.height - 40) + 20;
+            
+            const dx = snake.targetX - snake.x;
+            const dy = snake.targetY - snake.y;
+            const dist = Math.hypot(dx, dy);
+            
+            if(dist > 0) {
+                snake.vx = (dx / dist) * snake.speed;
+                snake.vy = (dy / dist) * snake.speed;
+            }
+        }
+
+        function startLoop() {
+            Game.lastTime = performance.now();
+            Game.loopId = requestAnimationFrame(loop);
+        }
+
+        function stopLoop() {
+            if(Game.loopId) cancelAnimationFrame(Game.loopId);
+            Game.loopId = null;
+        }
+
+        function loop() {
+            if(!Game.active) return;
+            const now = performance.now();
+            const dt = (now - Game.lastTime) / 1000;
+            Game.lastTime = now;
+
+            Game.timer -= dt;
+            
+            // Если время вышло и раунд еще не завершен логически
+            if(Game.timer <= 0 && !Game.roundFinished) {
+                Game.timer = 0;
+                endRoundTimeUp();
+                return;
+            }
+
+            const rect = Game.fieldRect;
+
+            Game.snakes.forEach(snake => {
+                snake.x += snake.vx;
+                snake.y += snake.vy;
+
+                const distToTarget = Math.hypot(snake.x - snake.targetX, snake.y - snake.targetY);
+                snake.timer -= dt;
+                
+                // Частота смены цели зависит от скорости игры
+                const turnRate = CFG.turnInterval / (Settings.speedMode === 2 ? 1.5 : 1.0);
+
+                if(distToTarget < 5 || snake.timer <= 0) {
+                    setNewTarget(snake);
+                    snake.timer = turnRate * (1 / (1 + Game.wave * 0.05));
+                }
+
+                snake.el.style.left = snake.x + 'px';
+                snake.el.style.top = snake.y + 'px';
+
+                const distToDot = Math.hypot(snake.x - Game.dot.x, snake.y - Game.dot.y);
+                if(distToDot < 22) {
+                    gameOver(false);
+                }
+            });
+
+            updateHUD();
+            Game.loopId = requestAnimationFrame(loop);
+        }
+
+        function updateHUD() {
+            document.getElementById('timer-display').innerText = Math.max(0, Game.timer).toFixed(1);
+            document.getElementById('wave-display').innerText = Game.wave;
+            
+            // Расчет потенциального выигрыша
+            const potential = Math.floor(CFG.eloBase * Game.wave * CFG.eloMult);
+            
+            // ГЛАВНОЕ ИСПРАВЛЕНИЕ: Если волна не закончена, показываем 0 или блокируем
+            if (!Game.roundFinished) {
+                document.getElementById('potential-elo').innerText = "+0 (ЖДИ)";
+                document.getElementById('potential-elo').style.color = "#999";
+            } else {
+                document.getElementById('potential-elo').innerText = "+" + potential;
+                document.getElementById('potential-elo').style.color = "#ff9800";
+            }
+        }
+
+        function endRoundTimeUp() {
+            if(Game.roundFinished) return;
+            Game.roundFinished = true;
+            stopLoop();
+            playSound('click'); // Звук окончания времени
+
+            const potential = Math.floor(CFG.eloBase * Game.wave * CFG.eloMult);
+            
+            const btnStop = document.getElementById('btn-stop');
+            btnStop.innerText = `ЗАБРАТЬ +${potential}`;
+            btnStop.classList.remove('btn-disabled');
+            btnStop.onclick = () => gameOver(true);
+            
+            document.getElementById('btn-next').style.display = 'block';
+            updateHUD(); // Обновить отображение суммы
+        }
+
+        function tryStopRound() {
+            // Попытка забрать очки
+            if (!Game.roundFinished) {
+                // Если волна не закончена, ничего не даем или трясем кнопку
+                const btn = document.getElementById('btn-stop');
+                btn.classList.add('btn-disabled');
+                setTimeout(() => btn.classList.remove('btn-disabled'), 300);
+                // Можно добавить звук ошибки, но пока просто игнорируем
+                return; 
+            }
+            // Если дошли сюда, значит волна закончена (обработчик меняется в endRoundTimeUp)
+            // Но на всякий случай дублируем логику
+            if(Game.roundFinished) gameOver(true);
+        }
+
+        function nextWave() {
+            playSound('click');
+            Game.wave++;
+            Game.roundFinished = false; // Сбрасываем для новой волны
+            
+            const timeMultiplier = Settings.speedMode === 2 ? 0.5 : 1.0;
+            Game.timer = CFG.baseTime * timeMultiplier;
+            
+            document.getElementById('btn-next').style.display = 'none';
+            
+            const btnStop = document.getElementById('btn-stop');
+            btnStop.innerText = "ЗАБРАТЬ ELO";
+            btnStop.classList.add('btn-disabled'); // Блокируем пока не кончится время
+            btnStop.onclick = tryStopRound;
+
+            spawnSnakes();
+            
+            Game.lastTime = performance.now();
+            Game.loopId = requestAnimationFrame(loop);
+        }
+
+        function gameOver(win) {
+            stopLoop();
+            Game.active = false;
+            const modal = document.getElementById('result-modal');
+            const title = document.getElementById('res-title');
+            const scoreEl = document.getElementById('res-score');
+            const desc = document.getElementById('res-desc');
+
+            if(win) {
+                playSound('win');
+                const gain = Math.floor(CFG.eloBase * Game.wave * CFG.eloMult);
+                DB.elo += gain;
+                if(gain > DB.best) DB.best = gain;
+                
+                title.innerText = "ПОБЕДА!";
+                title.className = "res-title win";
+                desc.innerText = `Ты продержался до ${Game.wave} волны.`;
+                scoreEl.innerText = `+${gain} ELO`;
+                scoreEl.className = "res-score win";
+            } else {
+                playSound('lose');
+                const loss = Math.floor((CFG.eloBase * Game.wave * CFG.eloMult) * CFG.penaltyMult);
+                DB.elo = Math.max(0, DB.elo - loss);
+                
+                title.innerText = "ПОЙМАЛИ!";
+                title.className = "res-title lose";
+                desc.innerText = `Змейка нашла тебя на ${Game.wave} волне.`;
+                scoreEl.innerText = `-${loss} ELO`;
+                scoreEl.className = "res-score lose";
+            }
+            
+            saveDB();
+            modal.classList.add('active');
+        }
+
+        window.onload = () => {
+            loadDB();
+            window.addEventListener('resize', () => {
+                if(Game.active) {
+                    const container = document.getElementById('field-container');
+                    const hudH = document.getElementById('hud').offsetHeight;
+                    const ctrlH = document.getElementById('controls').offsetHeight;
+                    container.style.height = (window.innerHeight - hudH - ctrlH - 20) + 'px';
+                    Game.fieldRect = container.getBoundingClientRect();
+                }
+            });
+        };
+    </script>
+</body>
+</html>
